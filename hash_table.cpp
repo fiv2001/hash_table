@@ -1,22 +1,46 @@
 #include <vector>
 #include <stdexcept>
-template<class KeyType, class ValueType> class HashMapIter;
-template<class KeyType, class ValueType> class HashMapCIter;
+template<class KeyType, class ValueType, class Hash = std::hash<KeyType> > class HashMapIter;
+template<class KeyType, class ValueType, class Hash = std::hash<KeyType> > class HashMapCIter;
 
 template<class KeyType, class ValueType, class Hash = std::hash<KeyType> > class HashMap {
-friend class HashMapIter<KeyType, ValueType>;
-typedef HashMapIter<KeyType, ValueType> iterator;
-typedef HashMapCIter<KeyType, ValueType> const_iterator;
+friend class HashMapIter<KeyType, ValueType, Hash>;
+friend class HashMapCIter<KeyType, ValueType, Hash>;
+public:
+	typedef HashMapIter<KeyType, ValueType, Hash> iterator;
+	typedef HashMapCIter<KeyType, ValueType, Hash> const_iterator;
 private:
 	size_t sz = 1;
 	size_t n = 0;
-	size_t L = 2, R = 3;
+	size_t L = 1, R = 3;
 	Hash hasher;
 	std::vector <std::vector <std::pair <KeyType, ValueType>> > table;
-public:
-	HashMap(Hash h = std::hash<KeyType>()) : hasher(h){
+	void rebuild() {
+		std::vector <std::pair<KeyType, ValueType>> all;
+		for (size_t i = 0; i < sz; i++) {
+			for (size_t j = 0; j < table[i].size(); j++) {
+				all.push_back(table[i][j]);
+			}
+		}
+		sz = std::max((size_t)2, n * (L + R) / 2); 
+		table.clear();
 		table.resize(sz);
-		// hasher = h;
+		for (size_t i = 0; i < all.size(); i++) {
+			size_t index = hasher(all[i].first) % sz;
+			table[index].push_back(all[i]);
+		}
+	}
+	inline void check() {
+		if (sz < L * n) {
+			rebuild();
+		}
+		if (sz > R * n) {
+			rebuild();
+		}
+	}
+public:
+	HashMap(Hash h = Hash()) : hasher(h) {
+		table.resize(sz);
 	};
 	void insert(std::pair <KeyType, ValueType> p) {
 		size_t index = hasher(p.first) % sz;
@@ -29,36 +53,35 @@ public:
 		if (!exists) {
 			n++;
 			table[index].push_back(p);
-			// check();
+			check();
 		}
 	}
-	template <typename Iter> HashMap(Iter begin, Iter end, Hash h = std::hash<KeyType>()) : hasher(h) {
-		// hasher = h;
+	template <typename Iter> HashMap(Iter begin, Iter end, Hash h = Hash()) : hasher(h){
 		table.resize(sz);
 		while (begin != end) {
 			insert(*begin);
 			begin++;
 		}
-		// check();
+		check();
 	}
-	HashMap(std::initializer_list<std::pair <KeyType, ValueType> > l, Hash h = std::hash<KeyType>()) : hasher(h) {
-		// hasher = h;
+	HashMap(std::initializer_list<std::pair <KeyType, ValueType> > l, Hash h = Hash()) : hasher(h){
 		table.resize(sz);
 		std::vector<std::pair <KeyType, ValueType>> v(l);
 		for (size_t i = 0; i < v.size(); i++) {
 			insert(v[i]);
 		}
-		// check();
+		check();
 	}
-	void erase(std::pair <KeyType, ValueType> p) {
-		size_t index = hasher(p.first) % sz;
+	void erase(KeyType key) {
+		size_t index = hasher(key) % sz;
 		for (size_t i = 0; i < table[index].size(); i++) {
-			if (table[index][i] == p) {
+			if (table[index][i].first == key) {
 				n--;
 				swap(table[index][i], table[index].back());
 				table[index].pop_back();
 			}
 		}
+		check();
 	}
 	bool empty() const {
 		return n == 0;
@@ -71,15 +94,21 @@ public:
 	};
 	iterator begin() {
 		size_t i = 0, j = 0;
-		while (table[i].empty() && i != sz) {
+		while (table[i].empty()) {
 			i++;
+			if (i == sz) {
+				break;
+			}
 		}
-		return iterator(*this, i, j); 
+		return iterator(*this, i, j);
 	}
 	const_iterator begin() const {
 		size_t i = 0, j = 0;
-		while (table[i].empty() && i != sz) {
+		while (table[i].empty()) {
 			i++;
+			if (i == sz) {
+				break;
+			}
 		}
 		return const_iterator(*this, i, j); 	
 	}
@@ -92,7 +121,16 @@ public:
 	iterator find(KeyType &key) {
 		size_t index = hasher(key) % sz;
 		for (size_t j = 0; j < table[index].size(); j++) {
-			if (key == table[index][j]) {
+			if (key == table[index][j].first) {
+				return iterator(*this, index, j);
+			}
+		}
+		return end();
+	}
+	iterator find(KeyType &&key) {
+		size_t index = hasher(key) % sz;
+		for (size_t j = 0; j < table[index].size(); j++) {
+			if (key == table[index][j].first) {
 				return iterator(*this, index, j);
 			}
 		}
@@ -101,7 +139,16 @@ public:
 	const_iterator find(KeyType &key) const {
 		size_t index = hasher(key) % sz;
 		for (size_t j = 0; j < table[index].size(); j++) {
-			if (key == table[index][j]) {
+			if (key == table[index][j].first) {
+				return const_iterator(*this, index, j);
+			}
+		}
+		return end();
+	}
+	const_iterator find(KeyType &&key) const {
+		size_t index = hasher(key) % sz;
+		for (size_t j = 0; j < table[index].size(); j++) {
+			if (key == table[index][j].first) {
 				return const_iterator(*this, index, j);
 			}
 		}
@@ -110,13 +157,22 @@ public:
 	ValueType & operator[](KeyType &key) {
 		size_t index = hasher(key) % sz;
 		for (size_t j = 0; j < table[index].size(); j++) {
-			if (key == table[index][j]) {
-				return &table[index][j].second;
+			if (key == table[index][j].first) {
+				return table[index][j].second;
 			}
 		}
-		// insult(jopa)
-		insert(key, ValueType());
-		return *this[key];
+		insert({key, ValueType()});
+		return (*this)[key];
+	}
+	ValueType & operator[](KeyType &&key) {
+		size_t index = hasher(key) % sz;
+		for (size_t j = 0; j < table[index].size(); j++) {
+			if (key == table[index][j].first) {
+				return table[index][j].second;
+			}
+		}
+		insert({key, ValueType()});
+		return (*this)[key];
 	}
 	const ValueType & at(KeyType &key) const {
 		size_t index = hasher(key) % sz;
@@ -125,27 +181,55 @@ public:
 				return &table[index][j].second;
 			}
 		}
-		throw std::out_of_range("gotcha");
+		throw std::out_of_range("");
+	}
+	const ValueType & at(KeyType &&key) const {
+		size_t index = hasher(key) % sz;
+		for (size_t j = 0; j < table[index].size(); j++) {
+			if (key == table[index][j].first) {
+				return table[index][j].second;
+			}
+		}
+		throw std::out_of_range("");
 	}
 	void clear() {
 		for (size_t index = 0; index < sz; index++) {
 			table[index].clear();
 		}
+		n = 0;
+		check();
 	}
 };
 
-template<class KeyType, class ValueType> class HashMapIter {
+template<class KeyType, class ValueType, class Hash> class HashMapIter {
 private:
 	size_t i, j;
-	HashMap<KeyType, ValueType> &object;
+	HashMap<KeyType, ValueType, Hash> *object = nullptr;
 public:
-	HashMapIter(HashMap<KeyType, ValueType> &hm, size_t i1, size_t j1) : object(hm), i(i1), j(j1) {
+	HashMapIter() : object(nullptr){
+	}
+	HashMapIter& operator=(HashMapIter other) {
+		i = other.i;
+		j = other.j;
+		return *this;
+	}
+	HashMapIter(HashMap<KeyType, ValueType, Hash> &hm, size_t i1, size_t j1) : i(i1), 
+	j(j1), 
+	object(&hm) {
 	}
 	HashMapIter & operator++() {
-		if (object[i].size() == j + 1) {
+		if (i == object-> sz) {
+			return *this;
+		}
+		if (object->table[i].size() <= j + 1) {
 			size_t index = i + 1;
-			while (object.table[index].empty() && index != object.sz) {
-				index++;
+			if (index < object->sz) {
+				while (object->table[index].empty() && index != object->sz) {
+					index++;
+					if (index == object->sz) {
+						break;
+					}
+				}
 			}
 			i = index;
 			j = 0;
@@ -159,32 +243,48 @@ public:
 		++(*this);
 		return temp;
 	}
-	bool operator==(HashMapIter<KeyType, ValueType> other) {
+	bool operator==(HashMapIter<KeyType, ValueType, Hash> other) {
 		return i == other.i && j == other.j;
 	}
-	bool operator!=(HashMapIter<KeyType, ValueType> other) {
+	bool operator!=(HashMapIter<KeyType, ValueType, Hash> other) {
 		return !(*this == other);
 	}
 	std::pair<const KeyType, ValueType>& operator*() {
-		return object.table[i][j];
+		return reinterpret_cast<std::pair<const KeyType, ValueType>&> (object->table[i][j]);
 	}
 	std::pair<const KeyType, ValueType>* operator->() {
-		return &object.table[i][j];
+		return &reinterpret_cast<std::pair<const KeyType, ValueType>&> (object->table[i][j]);
 	}
 };
 
-template<class KeyType, class ValueType> class HashMapCIter {
+template<class KeyType, class ValueType, class Hash> class HashMapCIter {
 private:
 	size_t i, j;
-	HashMap<KeyType, ValueType> &object;
+	const HashMap<KeyType, ValueType, Hash> * object = nullptr;
 public:
-	HashMapCIter(HashMap<KeyType, ValueType> &hm, size_t i1, size_t j1) : object(hm), i(i1), j(j1) {
+	HashMapCIter() {
+	}
+	HashMapCIter& operator=(HashMapCIter other) {
+		i = other.i;
+		j = other.j;
+		object = other.object;
+		return *this;
+	}
+	HashMapCIter(const HashMap<KeyType, ValueType, Hash> &hm, size_t i1, size_t j1) : i(i1), j(j1),  object(&hm) {
 	}
 	HashMapCIter & operator++() {
-		if (object[i].size() == j + 1) {
+		if (i == object->sz) {
+			return *this;
+		}
+		if (object->table[i].size() <= j + 1) {
 			size_t index = i + 1;
-			while (object.table[index].empty() && index != object.sz) {
-				index++;
+			if (index < object->sz) {
+				while (object->table[index].empty() && index != object->sz) {
+					index++;
+					if (index == object->sz) {
+						break;
+					}
+				}
 			}
 			i = index;
 			j = 0;
@@ -194,7 +294,7 @@ public:
 		return *this;
 	}
 	HashMapCIter operator++(int) {
-		HashMapIter<KeyType, ValueType> temp = *this;
+		HashMapCIter<KeyType, ValueType> temp = *this;
 		++(*this);
 		return temp;
 	}
@@ -205,9 +305,9 @@ public:
 		return !(*this == other);
 	}
 	const std::pair<const KeyType, ValueType>& operator*() {
-		return object.table[i][j];
+		return reinterpret_cast<const std::pair<const KeyType, ValueType>&> (object->table[i][j]);
 	}
 	const std::pair<const KeyType, ValueType>* operator->() {
-		return &object.table[i][j];
+		return &reinterpret_cast<const std::pair<const KeyType, ValueType>&> (object->table[i][j]);
 	}
 };
