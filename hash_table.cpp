@@ -2,6 +2,7 @@
 #include <stdexcept>
 #include <utility>
 #include <algorithm>
+
 template<class KeyType, class ValueType,
     class Hash = std::hash<KeyType> > class HashMapIter;
 template<class KeyType, class ValueType,
