@@ -239,7 +239,8 @@ private:
 
     // These variables are required to maintain the good ratio between the number of cells
     // in table and the number of inserted elements. It is always between Left_border and Right_border.
-    static constexpr size_t Left_border = 1, Right_border = 3;
+    static constexpr size_t Left_border = 1;
+    static constexpr size_t Right_border = 3;
     Hash Hasher;
     std::vector <std::vector <std::pair <KeyType, ValueType>> > Table;
 
@@ -275,7 +276,8 @@ private:
 // This is a non-const iterator to the elements inserted into the HashMap
 template<class KeyType, class ValueType, class Hash> class HashMapIter {
   private:
-    size_t i, j;
+    size_t i;
+    size_t j;
     HashMap<KeyType, ValueType, Hash> *object = nullptr;
 
   public:
@@ -335,7 +337,8 @@ template<class KeyType, class ValueType, class Hash> class HashMapIter {
 // This is a const iterator to the elements inserted into the HashMap.
 template<class KeyType, class ValueType, class Hash> class HashMapCIter {
   private:
-    size_t i, j;
+    size_t i;
+    size_t j;
     const HashMap<KeyType, ValueType, Hash> * object = nullptr;
 
   public:
