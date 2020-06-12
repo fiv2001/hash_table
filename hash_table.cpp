@@ -300,8 +300,8 @@ template<class KeyType, class ValueType, class Hash> class HashMapIter {
         if (object -> Table[i].size() <= j + 1) {
             size_t index = i + 1;
             if (index < object -> Hashing_modulo) {
-                while (object -> Table[index].empty() &&
-                    index != object -> Hashing_modulo) {
+                while (index != object -> Hashing_modulo && 
+                    object -> Table[index].empty()) {
 
                     index++;
                 }
@@ -367,8 +367,8 @@ template<class KeyType, class ValueType, class Hash> class HashMapCIter {
         if (object -> Table[i].size() <= j + 1) {
             size_t index = i + 1;
             if (index < object -> Hashing_modulo) {
-                while (object -> Table[index].empty() &&
-                    index != object -> Hashing_modulo) {
+                while (index != object -> Hashing_modulo && 
+                    object -> Table[index].empty()) {
 
                     index++;
                 }
